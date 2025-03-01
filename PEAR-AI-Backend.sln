@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EDB22427-CD46-4B97-8E29-C48AF48E6CF0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ARPianoTeacher", "src\ARPianoTeacher\ARPianoTeacher.csproj", "{DB9DE7EA-C61B-4FD0-9BBA-84D64B6E5923}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ARPianoTeacher.ConsoleDemo", "src\ARPianoTeacher.ConsoleDemo\ARPianoTeacher.ConsoleDemo.csproj", "{C7E8DA67-20D1-43CF-A486-79E8A7E92484}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DB9DE7EA-C61B-4FD0-9BBA-84D64B6E5923}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB9DE7EA-C61B-4FD0-9BBA-84D64B6E5923}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB9DE7EA-C61B-4FD0-9BBA-84D64B6E5923}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB9DE7EA-C61B-4FD0-9BBA-84D64B6E5923}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7E8DA67-20D1-43CF-A486-79E8A7E92484}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7E8DA67-20D1-43CF-A486-79E8A7E92484}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7E8DA67-20D1-43CF-A486-79E8A7E92484}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7E8DA67-20D1-43CF-A486-79E8A7E92484}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DB9DE7EA-C61B-4FD0-9BBA-84D64B6E5923} = {EDB22427-CD46-4B97-8E29-C48AF48E6CF0}
+		{C7E8DA67-20D1-43CF-A486-79E8A7E92484} = {EDB22427-CD46-4B97-8E29-C48AF48E6CF0}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,13 @@
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.csproj.AssemblyReference.cache
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.AssemblyInfoInputs.cache
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.AssemblyInfo.cs
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.csproj.CoreCompileInputs.cache
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.sourcelink.json
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\bin\Debug\net8.0\ARPianoTeacher.deps.json
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\bin\Debug\net8.0\ARPianoTeacher.dll
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\bin\Debug\net8.0\ARPianoTeacher.pdb
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.dll
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\refint\ARPianoTeacher.dll
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ARPianoTeacher.pdb
+C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher\obj\Debug\net8.0\ref\ARPianoTeacher.dll

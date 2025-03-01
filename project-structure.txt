@@ -1,0 +1,39 @@
+ARPianoTeacher/
+│
+├── ARPianoTeacher.sln                  # Solution file
+│
+├── src/
+│   ├── ARPianoTeacher/                 # Main library project
+│   │   ├── ARPianoTeacher.csproj       # Project file
+│   │   ├── PianoFeedbackSystem.cs      # Core system implementation
+│   │   ├── NoteAnalyzer.cs             # MIDI note analysis logic
+│   │   ├── AIFeedbackGenerator.cs      # OpenAI integration
+│   │   └── VoiceSynthesizer.cs         # ElevenLabs integration
+│   │
+│   └── ARPianoTeacher.ConsoleDemo/     # Console application demo
+│       ├── ARPianoTeacher.ConsoleDemo.csproj
+│       └── Program.cs                  # Console entry point
+│
+├── Unity/
+│   ├── Scripts/                        # Unity C# scripts
+│   │   ├── PianoTeacherBehaviour.cs    # Unity component
+│   │   └── ARPianoVisualizer.cs        # AR visualization
+│   │
+│   └── Prefabs/                        # Unity prefabs
+│       ├── PianoTeacher.prefab         # Ready-to-use component
+│       └── PianoKeyFeedback.prefab     # Visual feedback for keys
+│
+├── Samples/
+│   └── MidiFiles/                      # Sample MIDI files for testing
+│       ├── scale_c_major.mid           # Simple C major scale
+│       ├── twinkle_twinkle.mid         # Beginner song
+│       └── fur_elise_simplified.mid    # Intermediate piece
+│
+├── docs/
+│   ├── setup.md                        # Detailed setup instructions
+│   ├── unity_integration.md            # Unity integration guide
+│   └── customization.md                # Customization options
+│
+├── .gitignore                          # Git ignore file
+├── README.md                           # Project readme
+└── LICENSE                             # License file
