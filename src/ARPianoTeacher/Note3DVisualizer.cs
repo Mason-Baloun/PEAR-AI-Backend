@@ -45,6 +45,7 @@ namespace ARPianoTeacher
         private const float trackLength = 30.0f; // Length of the visible track
         private const float noteBaseHeight = 2.0f; // Height above the keyboard
         private const float noteWallZ = whiteKeyLength; // Position wall at the end of the keyboard
+        private const float noteMeltRate = 0.1f; // How quickly notes "melt" when they hit the wall
 
         // Camera settings
         private const float cameraHeight = 15.0f;
@@ -74,8 +75,14 @@ namespace ARPianoTeacher
         private Dictionary<int, bool> playedNotes = new Dictionary<int, bool>();
 
         // Debug information
-        private int totalParsedNotes = 0;
         private int visibleNotes = 0;
+
+        // Add these fields to the class
+        private float beatsPerMeasure = 4.0f; // Default to 4/4 time
+        private float tempoInBeatsPerMinute = 120.0f; // Default to 120 BPM
+        private float measureLineSpacing = 4.0f; // Distance between measure lines in 3D space
+
+        private Dictionary<int, (float meltProgress, float originalEndZ)> meltingNotes = new Dictionary<int, (float meltProgress, float originalEndZ)>();
 
         public Note3DVisualizer(MidiFile midiFile, int trackNumber = 0)
         {
@@ -84,8 +91,8 @@ namespace ARPianoTeacher
 
             // Initialize the camera with adjusted position for better keyboard view
             camera = new Camera3D();
-            camera.position = new Vector3(0.0f, cameraHeight, cameraDistance);
-            camera.target = new Vector3(0.0f, cameraTargetHeight, 0.0f);
+            camera.position = new Vector3(6.0f, 10.8f, 20.2f);
+            camera.target = new Vector3(6.0f, 5.8f, -5.0f);
             camera.up = new Vector3(0.0f, 1.0f, 0.0f);
             camera.fovy = 60.0f; // Wider field of view
             camera.projection = CameraProjection.CAMERA_PERSPECTIVE;
@@ -102,20 +109,30 @@ namespace ARPianoTeacher
         /// </summary>
         private void PreParseMidi()
         {
-            if (midiFile == null || trackNumber >= midiFile.Tracks) return;
-
-            totalParsedNotes = 0;
-            int trackToUse = midiFile.Events.Count() > 1 ? 1 : 0; // Use track 1 if available, otherwise track 0
-
-            foreach (var midiEvent in midiFile.Events[trackToUse])
+            try
             {
-                if (midiEvent is NoteOnEvent noteOn && noteOn.Velocity > 0)
+                // Get tempo and time signature information
+                foreach (var midiEvent in midiFile.Events[0]) // Time signature usually in track 0
                 {
-                    totalParsedNotes++;
+                    if (midiEvent is TempoEvent tempoEvent)
+                    {
+                        tempoInBeatsPerMinute = 60000000 / tempoEvent.MicrosecondsPerQuarterNote;
+                        Console.WriteLine($"Tempo: {tempoInBeatsPerMinute} BPM");
+                    }
+                    else if (midiEvent is TimeSignatureEvent timeSignatureEvent)
+                    {
+                        beatsPerMeasure = timeSignatureEvent.Numerator;
+                        Console.WriteLine($"Time Signature: {timeSignatureEvent.Numerator}/{timeSignatureEvent.Denominator}");
+                    }
                 }
-            }
 
-            Console.WriteLine($"Parsed MIDI file contains {totalParsedNotes} notes");
+                // Track selected for playback
+                Console.WriteLine($"Using track {trackNumber} for playback");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing MIDI: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -136,8 +153,8 @@ namespace ARPianoTeacher
             {
                 int noteInOctave = noteNumber % 12;
                 bool isBlack = (noteInOctave == 1 || noteInOctave == 3 ||
-                              noteInOctave == 6 || noteInOctave == 8 ||
-                              noteInOctave == 10);
+                               noteInOctave == 6 || noteInOctave == 8 ||
+                               noteInOctave == 10);
 
                 if (!isBlack)
                 {
@@ -216,7 +233,7 @@ namespace ARPianoTeacher
 
             if (isSongPlaying)
             {
-                // Reset playback position and start time
+                // Store current position as reference point for timing calculations
                 playPositionMs = 0;
                 songStartTime = DateTime.Now;
                 Console.WriteLine("Song playback started");
@@ -224,6 +241,27 @@ namespace ARPianoTeacher
             else
             {
                 Console.WriteLine("Song playback paused");
+            }
+
+            // Reset all played notes when toggling playback to prevent stuck keys
+            ResetAllNoteStates();
+        }
+
+        /// <summary>
+        /// Reset all note states to prevent keys being stuck in the played state
+        /// </summary>
+        private void ResetAllNoteStates()
+        {
+            lock (playedNotes)
+            {
+                // Clear the dictionary and re-add all keys as not played
+                playedNotes.Clear();
+
+                // Reset all note states to "not played"
+                foreach (var noteNum in noteToKeyMap.Keys)
+                {
+                    playedNotes[noteNum] = false;
+                }
             }
         }
 
@@ -271,7 +309,13 @@ namespace ARPianoTeacher
             else
             {
                 // When song is playing, calculate position based on elapsed time
-                playPositionMs = (int)(DateTime.Now - songStartTime).TotalMilliseconds;
+                // Ensure we're getting a valid elapsed time even for the first few seconds
+                TimeSpan elapsed = DateTime.Now - songStartTime;
+                playPositionMs = (int)elapsed.TotalMilliseconds;
+
+                // Ensure playback position is never negative
+                if (playPositionMs < 0)
+                    playPositionMs = 0;
             }
 
             UpdateActiveNotes();
@@ -282,44 +326,47 @@ namespace ARPianoTeacher
         /// </summary>
         private void UpdateActiveNotes()
         {
-            // Clear previous notes
-            activeNotes.Clear();
-
-            // Only show notes if song is playing
-            if (!isSongPlaying) return;
-
-            // Get upcoming notes
-            var upcomingNotes = GetUpcomingNotes(playPositionMs, lookAheadTimeMs);
-            visibleNotes = upcomingNotes.Count;
-
-            // Convert time-based positions to 3D space
-            foreach (var note in upcomingNotes)
+            lock (activeNotes)
             {
-                if (!noteToKeyMap.ContainsKey(note.noteNumber)) continue;
+                // Clear previous notes
+                activeNotes.Clear();
 
-                // Calculate Z positions based on time
-                float startZ = ConvertTimeToZ(note.startTimeMs);
-                float endZ = ConvertTimeToZ(note.startTimeMs + note.durationMs);
+                // Only show notes if song is playing
+                if (!isSongPlaying) return;
 
-                // Add to active notes
-                activeNotes.Add((note.noteNumber, startZ, endZ));
+                // Get upcoming notes
+                var upcomingNotes = GetUpcomingNotes(playPositionMs, lookAheadTimeMs);
+                visibleNotes = upcomingNotes.Count;
+
+                // Convert time-based positions to 3D space
+                foreach (var note in upcomingNotes)
+                {
+                    if (!noteToKeyMap.ContainsKey(note.noteNumber)) continue;
+
+                    // Calculate Z positions based on time
+                    float startZ = ConvertTimeToZ(note.startTimeMs);
+                    float endZ = ConvertTimeToZ(note.startTimeMs + note.durationMs);
+
+                    // Add to active notes
+                    activeNotes.Add((note.noteNumber, startZ, endZ));
+                }
             }
         }
 
         /// <summary>
-        /// Convert time in milliseconds to Z position
+        /// Convert time to Z position for rendering
         /// </summary>
         private float ConvertTimeToZ(long timeMs)
         {
-            // Convert time to Z position (notes start far away and come toward player)
-            long relativeTime = timeMs - playPositionMs;
+            // Calculate relative time from current playback position
+            float relativeTimeSeconds = (timeMs - playPositionMs) / 1000.0f;
 
-            // Ensure the Z position is within our render distance
-            // Start at -30 (far) and come toward hitLineZ
-            float zPos = hitLineZ - (trackLength * (float)relativeTime / lookAheadTimeMs);
+            // Notes start from far away (negative Z) and move toward the keyboard (positive Z)
+            // We want to scale this properly based on note speed
+            float zPos = hitLineZ + (relativeTimeSeconds * noteSpeed * -100.0f);
 
-            // Constrain so we don't render too far or beyond hit line
-            return Math.Max(hitLineZ - trackLength, Math.Min(zPos, hitLineZ));
+            // Constrain position to visible track area
+            return Math.Max(hitLineZ - trackLength, Math.Min(zPos, hitLineZ + 10.0f));
         }
 
         /// <summary>
@@ -329,18 +376,34 @@ namespace ARPianoTeacher
         {
             try
             {
-                // Initialize window
-                Raylib.InitWindow(screenWidth, screenHeight, "AR Piano Teacher - 3D Visualization");
+                // Initialize Raylib window
+                Raylib.InitWindow(screenWidth, screenHeight, "3D Piano Visualizer");
                 Raylib.SetTargetFPS(60);
 
-                // Main rendering loop
-                while (!Raylib.WindowShouldClose() && isRunning)
+                // Initialize 3D Camera
+                camera = new Camera3D();
+                camera.position = new Vector3(6.0f, 10.8f, 20.2f);
+                camera.target = new Vector3(6.0f, 5.8f, -5.0f);
+                camera.up = new Vector3(0.0f, 1.0f, 0.0f);
+                camera.fovy = 60.0f;
+                camera.projection = CameraProjection.CAMERA_PERSPECTIVE;
+
+                // Main render loop
+                while (!Raylib.WindowShouldClose() && isRunning && !cancellationTokenSource.IsCancellationRequested)
                 {
-                    Update();
-                    Draw();
+                    try
+                    {
+                        Update();
+                        Draw();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Rendering error: {ex.Message}");
+                        // Don't break on error, try to continue rendering
+                    }
                 }
 
-                // Close window when done
+                // Clean up Raylib
                 Raylib.CloseWindow();
             }
             catch (Exception ex)
@@ -416,22 +479,142 @@ namespace ARPianoTeacher
         /// </summary>
         private void DrawNoteTracks()
         {
-            // Draw very faint guide lines for all keys
-            foreach (var entry in noteToKeyMap)
+            // Calculate time-related values
+            float msPerBeat = 60000.0f / tempoInBeatsPerMinute;
+            float msPerMeasure = msPerBeat * beatsPerMeasure;
+
+            // Use hardcoded values to ensure full coverage regardless of keyboard calculation
+            // Make these MUCH wider than needed to guarantee coverage
+            float left = -40.0f;  // Far left boundary
+            float right = 40.0f;  // Far right boundary
+
+            // Draw debug info for tracking coordinates
+            DrawText3D(
+                $"GRID WIDTH: {right - left:F1} | KB WIDTH: {keyboardWidth:F1} | START: {keyboardStartX:F1}",
+                new Vector3(0, noteBaseHeight + 5.0f, hitLineZ + 2.0f),
+                0.5f,
+                Color.BLACK
+            );
+
+            // Draw vertical tracks for all white keys
+            var keyMap = new Dictionary<int, (int keyIndex, bool isBlack)>(noteToKeyMap);
+            foreach (var entry in keyMap)
             {
-                var (keyIndex, isBlack) = entry.Value;
-                float keyX = CalculateKeyX(keyIndex, isBlack);
-                float currentKeyHeight = isBlack ? blackKeyHeight : keyHeight;
+                if (!entry.Value.isBlack)
+                {
+                    float keyX = CalculateKeyX(entry.Value.keyIndex, false);
 
-                // Track start position (at key top)
-                Vector3 trackStart = new Vector3(keyX, currentKeyHeight, 0);
-                // Track end position (far away)
-                Vector3 trackEnd = new Vector3(keyX, noteBaseHeight, -trackLength);
-
-                // Draw a very faint line
-                Color trackColor = isBlack ? new Color(100, 100, 100, 50) : new Color(200, 200, 200, 50);
-                Raylib.DrawLine3D(trackStart, trackEnd, trackColor);
+                    // Draw track line
+                    Raylib.DrawLine3D(
+                        new Vector3(keyX, noteBaseHeight, hitLineZ),
+                        new Vector3(keyX, noteBaseHeight, hitLineZ - trackLength),
+                        Color.GRAY
+                    );
+                }
             }
+
+            // Calculate current measure and beat position
+            int currentMeasure = (int)(playPositionMs / msPerMeasure);
+            float measureProgress = (playPositionMs % msPerMeasure) / msPerMeasure;
+
+            // Calculate measure length in 3D space based on time and note speed
+            float secondsPerMeasure = msPerMeasure / 1000.0f;
+            float measureLength = secondsPerMeasure * noteSpeed * 100.0f;
+
+            // Calculate how far the entire grid should move based on the current measure progress
+            float baseGridPos = hitLineZ - trackLength; // Farthest point from keyboard
+
+            // Calculate how many measures can fit in the visible track
+            int measuresInTrack = (int)Math.Ceiling(trackLength / measureLength);
+
+            // Find what measure should be at the far end of the track
+            int baseMeasure = currentMeasure + measuresInTrack;
+
+            // Draw measure lines
+            // Start drawing from the far end of the track toward the hit line
+            for (int i = 0; i <= measuresInTrack + 1; i++)
+            {
+                // Calculate the measure number
+                int thisMeasureNumber = baseMeasure - i;
+
+                // Calculate the measure position in 3D space
+                float distFromFarEnd = i * measureLength;
+                float movementOffset = measureProgress * measureLength;
+                float measureZ = baseGridPos + distFromFarEnd + movementOffset;
+
+                // Skip if outside visible range
+                if (measureZ < hitLineZ - trackLength || measureZ > noteWallZ)
+                    continue;
+
+                // Skip negative measure numbers
+                if (thisMeasureNumber < 0)
+                    continue;
+
+                // Draw a solid measure line across the entire width
+                Raylib.DrawLine3D(
+                    new Vector3(left, noteBaseHeight, measureZ),
+                    new Vector3(right, noteBaseHeight, measureZ),
+                    Color.RED
+                );
+
+                // Draw measure number
+                Vector3 textPos = new Vector3(left - 1.5f, noteBaseHeight, measureZ);
+                DrawText3D($"M{thisMeasureNumber}", textPos, 0.8f, Color.RED);
+
+                // Draw beat lines for this measure
+                if (i < measuresInTrack)
+                {
+                    float nextMeasureZ = baseGridPos + (i + 1) * measureLength + movementOffset;
+
+                    // Draw beat lines between this measure and the next
+                    for (int beat = 1; beat < beatsPerMeasure; beat++)
+                    {
+                        // Calculate position as a fraction between measure lines
+                        float beatFraction = beat / beatsPerMeasure;
+                        float beatZ = measureZ + (beatFraction * (nextMeasureZ - measureZ));
+
+                        // Skip if outside visible range
+                        if (beatZ < hitLineZ - trackLength || beatZ > noteWallZ)
+                            continue;
+
+                        // Draw a solid beat line across the entire width
+                        Raylib.DrawLine3D(
+                            new Vector3(left, noteBaseHeight, beatZ),
+                            new Vector3(right, noteBaseHeight, beatZ),
+                            new Color(150, 150, 150, 150)
+                        );
+                    }
+                }
+            }
+
+            // Draw boundary markers to visualize grid edges
+            Raylib.DrawSphere(new Vector3(left, noteBaseHeight, hitLineZ), 0.5f, Color.GREEN);  // Left boundary
+            Raylib.DrawSphere(new Vector3(right, noteBaseHeight, hitLineZ), 0.5f, Color.GREEN); // Right boundary
+
+            // Draw hit line across the entire width
+            Raylib.DrawLine3D(
+                new Vector3(left, noteBaseHeight, hitLineZ),
+                new Vector3(right, noteBaseHeight, hitLineZ),
+                Color.YELLOW
+            );
+
+            // Draw wall across the entire width
+            // Draw both a wireframe box and a solid line
+            float wallWidth = right - left;
+
+            // Draw solid line at wall
+            Raylib.DrawLine3D(
+                new Vector3(left, noteBaseHeight, noteWallZ),
+                new Vector3(right, noteBaseHeight, noteWallZ),
+                new Color(255, 0, 0, 255) // Pure red, fully opaque
+            );
+
+            // Draw wireframe box at wall
+            Raylib.DrawCubeWires(
+                new Vector3((left + right) / 2, noteBaseHeight, noteWallZ), // Center position
+                wallWidth, noteBaseHeight, 0.1f,
+                Color.RED
+            );
         }
 
         /// <summary>
@@ -494,12 +677,6 @@ namespace ARPianoTeacher
                 Raylib.DrawCube(position, size.X, size.Y, size.Z, keyColor);
                 Raylib.DrawCubeWires(position, size.X, size.Y, size.Z, Color.DARKGRAY);
             }
-
-            // Draw the wall (semi-transparent plane)
-            Vector3 wallPosition = new Vector3(0, noteBaseHeight / 2, noteWallZ);
-            Vector3 wallSize = new Vector3(keyboardWidth + 2, noteBaseHeight, 0.05f);
-            Color wallColor = new Color(200, 200, 200, 50); // More transparent
-            Raylib.DrawCube(wallPosition, wallSize.X, wallSize.Y, wallSize.Z, wallColor);
         }
 
         /// <summary>
@@ -534,68 +711,141 @@ namespace ARPianoTeacher
         /// </summary>
         private void DrawNotes()
         {
-            foreach (var note in activeNotes)
+            // Create a thread-safe copy of active notes
+            List<(int noteNumber, float startZ, float endZ)> currentActiveNotes;
+            lock (activeNotes)
+            {
+                currentActiveNotes = new List<(int noteNumber, float startZ, float endZ)>(activeNotes);
+            }
+
+            // Create a temporary dictionary for notes that continue melting
+            var updatedMeltingNotes = new Dictionary<int, (float meltProgress, float originalEndZ)>();
+
+            // Create a temporary set of currently active note numbers
+            var currentlyActiveNoteNumbers = new HashSet<int>();
+
+            // Create a temporary dictionary to track note state changes
+            var noteStateChanges = new Dictionary<int, bool>();
+
+            // Process all active notes
+            foreach (var note in currentActiveNotes)
             {
                 if (!noteToKeyMap.ContainsKey(note.noteNumber)) continue;
 
                 var (keyIndex, isBlack) = noteToKeyMap[note.noteNumber];
                 float keyX = CalculateKeyX(keyIndex, isBlack);
                 float width = isBlack ? keyWidth * 0.6f : keyWidth;
-                float keyLength = isBlack ? blackKeyLength : whiteKeyLength;
 
-                // Calculate the visible portion of the note
+                // Add this note to our active set
+                currentlyActiveNoteNumbers.Add(note.noteNumber);
+
+                // Calculate visible portion of the note
                 float visibleStartZ = note.startZ;
                 float visibleEndZ = note.endZ;
+
+                // Check if the note is hitting the wall and should start melting
+                bool isNoteMelting = false;
+                float meltProgress = 0f;
+
+                // If the start of the note is past the wall, we don't draw it at all
+                if (visibleStartZ > noteWallZ)
+                {
+                    continue;
+                }
+
+                // If the note is hitting the wall, handle melting
+                if (visibleEndZ > noteWallZ)
+                {
+                    // If this note isn't already melting, start melting it
+                    if (!meltingNotes.ContainsKey(note.noteNumber))
+                    {
+                        updatedMeltingNotes[note.noteNumber] = (0f, visibleEndZ);
+                        isNoteMelting = true;
+                        meltProgress = 0f;
+                    }
+                    else
+                    {
+                        // Continue the melting process
+                        meltProgress = meltingNotes[note.noteNumber].meltProgress + noteMeltRate * Raylib.GetFrameTime();
+                        isNoteMelting = true;
+
+                        // Store updated melt progress
+                        if (meltProgress < 1.0f)
+                        {
+                            updatedMeltingNotes[note.noteNumber] = (meltProgress, meltingNotes[note.noteNumber].originalEndZ);
+                        }
+                    }
+
+                    if (isNoteMelting)
+                    {
+                        // Calculate how much of the note has melted
+                        float meltAmount = meltProgress;
+
+                        // Original portion past the wall
+                        float overlapLength = visibleEndZ - noteWallZ;
+
+                        // Adjust the end position based on melt progress
+                        visibleEndZ = noteWallZ - (meltAmount * overlapLength);
+
+                        // If the note has completely melted away, don't draw it
+                        if (visibleEndZ <= visibleStartZ)
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        // If not melting, just cut at the wall
+                        visibleEndZ = noteWallZ;
+                    }
+                }
+
+                // Calculate note length after potential melting
                 float length = Math.Abs(visibleEndZ - visibleStartZ);
 
                 // Skip very short notes
-                if (length < 0.1f) continue;
+                if (length < 0.05f) continue;
 
-                // Calculate Y position to smoothly descend to the key height
-                float startY = noteBaseHeight;
-                float endY = isBlack ? blackKeyHeight : keyHeight;
-                float noteProgress = (visibleStartZ - trackLength) / (-trackLength); // 0 to 1
-                float currentY = startY + (endY - startY) * noteProgress;
-
-                // Calculate fade based on distance through the wall
-                float fadeStart = noteWallZ - 1.0f; // Start fading 1 unit before the wall
-                float fadeEnd = noteWallZ + 1.0f;   // Complete fade 1 unit after the wall
-                float fadeAlpha = 255;
-
-                if (visibleStartZ > fadeStart)
-                {
-                    float fadeProgress = (visibleStartZ - fadeStart) / (fadeEnd - fadeStart);
-                    fadeAlpha = 255 * (1.0f - Math.Min(1.0f, Math.Max(0.0f, fadeProgress)));
-                }
-
-                // Draw the note with appropriate color and fade
+                // Draw the note at constant height
+                float noteY = noteBaseHeight;
                 Color noteColor = isBlack ? blackNoteColor : whiteNoteColor;
-                noteColor.a = (byte)fadeAlpha;
-                Vector3 position = new Vector3(keyX, currentY, (visibleStartZ + visibleEndZ) / 2);
+
+                // Calculate center position for the note
+                Vector3 position = new Vector3(keyX, noteY, (visibleStartZ + visibleEndZ) / 2);
+
+                // Draw the note as a cube
                 Raylib.DrawCube(position, width, 0.5f, length, noteColor);
+                Raylib.DrawCubeWires(position, width, 0.5f, length, Color.WHITE);
 
-                // Only draw wireframe if note isn't too faded
-                if (fadeAlpha > 30)
+                // Track note state changes based on hit line
+                bool shouldBePlayed = visibleStartZ >= hitLineZ - 0.5f && visibleStartZ <= hitLineZ;
+
+                // Only update if the note's state is changing
+                if (!playedNotes.ContainsKey(note.noteNumber) || playedNotes[note.noteNumber] != shouldBePlayed)
                 {
-                    Color wireColor = Color.WHITE;
-                    wireColor.a = (byte)fadeAlpha;
-                    Raylib.DrawCubeWires(position, width, 0.5f, length, wireColor);
+                    noteStateChanges[note.noteNumber] = shouldBePlayed;
+                }
+            }
+
+            // Update the melting notes collection
+            meltingNotes = updatedMeltingNotes;
+
+            // Apply note state changes
+            lock (playedNotes)
+            {
+                // First apply the state changes from active notes
+                foreach (var change in noteStateChanges)
+                {
+                    playedNotes[change.Key] = change.Value;
                 }
 
-                // If note has reached the wall, mark it as being played
-                if (visibleStartZ >= noteWallZ)
+                // Then ensure any notes not currently active are marked as not played
+                var allNotes = new List<int>(playedNotes.Keys);
+                foreach (var noteNumber in allNotes)
                 {
-                    lock (playedNotes)
+                    if (!currentlyActiveNoteNumbers.Contains(noteNumber))
                     {
-                        playedNotes[note.noteNumber] = true;
-                    }
-                }
-                else if (note.endZ < fadeStart)
-                {
-                    // If note has passed completely before the fade zone, mark it as not being played
-                    lock (playedNotes)
-                    {
-                        playedNotes[note.noteNumber] = false;
+                        playedNotes[noteNumber] = false;
                     }
                 }
             }
@@ -617,9 +867,6 @@ namespace ARPianoTeacher
             string statusText = isSongPlaying ? "Status: Playing (Press Enter to pause)" : "Status: Paused (Press Enter to play)";
             Raylib.DrawText(statusText, 20, 90, 20, Color.BLUE);
 
-            // Draw note debug info
-            Raylib.DrawText($"Total MIDI notes: {totalParsedNotes}, Currently visible: {visibleNotes}", 20, 120, 20, Color.DARKGREEN);
-
             // Draw instructions at the bottom with better visibility
             Color instructionColor = Color.DARKBLUE;
             int yPos = screenHeight - 120;
@@ -631,15 +878,46 @@ namespace ARPianoTeacher
         }
 
         /// <summary>
-        /// Helper method to draw 3D text
+        /// Draw 3D text at the specified position
         /// </summary>
         private void DrawText3D(string text, Vector3 position, float fontSize, Color color)
         {
             // Calculate screen position from 3D position
             Vector2 screenPos = Raylib.GetWorldToScreen(position, camera);
 
-            // Draw text at screen position
-            Raylib.DrawText(text, (int)screenPos.X - text.Length * 3, (int)screenPos.Y, (int)(fontSize * 20), color);
+            // Adjust values to make text more visible
+            float bgPadding = 8.0f;
+            float textWidth = text.Length * fontSize * 7.0f;  // Increase multiplier for better width calculation
+            float textHeight = fontSize * 22.0f;              // Slightly increase height
+
+            // Use color-matched background with alpha for better contrast
+            Color bgColor = new Color(
+                color.r > 128 ? 0 : 255,  // Opposite brightness of text color
+                color.g > 128 ? 0 : 255,
+                color.b > 128 ? 0 : 255,
+                100  // Semi-transparent
+            );
+
+            // Draw a semi-transparent background with border
+            Raylib.DrawRectangle(
+                (int)(screenPos.X - bgPadding),
+                (int)(screenPos.Y - bgPadding),
+                (int)(textWidth + bgPadding * 2),
+                (int)(textHeight + bgPadding * 2),
+                bgColor
+            );
+
+            // Outline for better visibility
+            Raylib.DrawRectangleLines(
+                (int)(screenPos.X - bgPadding),
+                (int)(screenPos.Y - bgPadding),
+                (int)(textWidth + bgPadding * 2),
+                (int)(textHeight + bgPadding * 2),
+                color
+            );
+
+            // Draw the text
+            Raylib.DrawText(text, (int)screenPos.X, (int)screenPos.Y, (int)(fontSize * 20), color);
         }
 
         /// <summary>
