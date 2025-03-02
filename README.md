@@ -43,14 +43,14 @@ An augmented reality piano learning system that provides real-time feedback on p
    \`\`\`
 
 3. Add your API keys as environment variables:
-   
-   *For Windows PowerShell:*
+
+   _For Windows PowerShell:_
    \`\`\`
    \$env:OPENAI_API_KEY=\"your_openai_api_key\"
    \$env:ELEVENLABS_API_KEY=\"your_elevenlabs_api_key\"
    \`\`\`
-   
-   *For macOS/Linux:*
+
+   _For macOS/Linux:_
    \`\`\`
    export OPENAI_API_KEY=\"your_openai_api_key\"
    export ELEVENLABS_API_KEY=\"your_elevenlabs_api_key\"
@@ -67,11 +67,13 @@ An augmented reality piano learning system that provides real-time feedback on p
 1. Create a new Unity project or open an existing one.
 
 2. Install required Unity packages:
+
    - AR Foundation
    - AR Subsystem implementations (ARCore/ARKit)
    - TextMeshPro (for UI)
 
 3. Copy the following files to your Unity Assets folder:
+
    - \`PianoFeedbackSystem.cs\`
    - \`PianoTeacherBehaviour.cs\`
 
@@ -85,6 +87,7 @@ An augmented reality piano learning system that provides real-time feedback on p
 6. Create an empty GameObject in your scene and add the \`PianoTeacherBehaviour\` component.
 
 7. Configure the component in the Inspector:
+
    - Add your API keys
    - Set your ElevenLabs voice ID
    - Select your MIDI input device
@@ -95,6 +98,7 @@ An augmented reality piano learning system that provides real-time feedback on p
 ## Getting API Keys
 
 ### OpenAI API
+
 1. Visit [OpenAI API](https://platform.openai.com/)
 2. Create an account or sign in
 3. Navigate to the API section
@@ -102,6 +106,7 @@ An augmented reality piano learning system that provides real-time feedback on p
 5. Copy the key for use in this application
 
 ### ElevenLabs API
+
 1. Visit [ElevenLabs](https://elevenlabs.io/)
 2. Create an account or sign in
 3. Navigate to your profile settings
@@ -109,6 +114,7 @@ An augmented reality piano learning system that provides real-time feedback on p
 5. Copy the key for use in this application
 
 ### ElevenLabs Voice ID
+
 1. Sign in to your ElevenLabs account
 2. Go to the Voice Library
 3. Select a voice you'd like to use
@@ -142,16 +148,16 @@ You can customize the teaching personality by modifying the JSON profile in the 
 
 \`\`\`csharp
 personalityProfile = @\"{
-    \\"name\\": \\"Your Teacher Name\\",
-    \\"role\\": \\"Piano Teacher\\",
-    \\"experience\\": \\"Background description\\",
-    \\"teaching_style\\": \\"Your preferred teaching style\\",
-    \\"feedback_style\\": [
-        \\"Feedback characteristic 1\\",
-        \\"Feedback characteristic 2\\",
-        // Add more as needed
-    ],
-    \\"voice_characteristics\\": \\"Description of voice\\",
+\\"name\\": \\"Your Teacher Name\\",
+\\"role\\": \\"Piano Teacher\\",
+\\"experience\\": \\"Background description\\",
+\\"teaching_style\\": \\"Your preferred teaching style\\",
+\\"feedback_style\\": [
+\\"Feedback characteristic 1\\",
+\\"Feedback characteristic 2\\",
+// Add more as needed
+],
+\\"voice_characteristics\\": \\"Description of voice\\",
 }\";
 \`\`\`
 
@@ -173,8 +179,8 @@ Add visual cues by extending the Unity integration:
 // Example method to visualize notes in AR
 public void VisualizeNote(int noteNumber, bool isCorrect)
 {
-    // Create or update AR visual elements
-    // e.g., spawn particle effects, highlight piano keys, etc.
+// Create or update AR visual elements
+// e.g., spawn particle effects, highlight piano keys, etc.
 }
 \`\`\`
 
@@ -221,16 +227,11 @@ Add support for alternative input methods by implementing additional device inte
 
 For questions, issues, or feature requests, please [open an issue](https://github.com/Mason-Baloun/PEAR-AI-Backend/issues) on this repository.
 
-
 ## Improvement List:
 
-1. Visualize the coming notes similiar to guitar hero, have a line near the bottom of the screen to determine when the user should play. Later this will be implemented into unity using x,y,z cords. Maybe we use a leightweight 3D processing software that doesn't require unity for debugging and utilize and take the x,y,z and implement that into unity (and maybe other cords as well)
-2. For the demo, remove the 2nd midi option for physical piano (the other is midi, i'm not sure the difference really matters)
-3. For song selection, create a list of songs to choose from reading from PEAR-AI-Backend\Samples\MidiFiles
-
-Enter path to a MIDI file to practice:
-"C:\Users\mason\Downloads\PEAR-AI-Backend\Samples\MidiFiles\Hot Cross Buns.mid"
-File not found. Exiting.
-PS C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher.ConsoleDemo>
-
-3. Create an exit button within the demo to exit (can be esc or something [I haven't tested to see if it exists already, if it does, ignore this instruction])
+1. Give the user a gap between when the user presses start and the song starts (maybe like 4 measures)
+2. Allow positioning of the grid with keyboard buttons to find a better starting position.
+3. Make sure the program lists all available .mid files
+4. Fix the red box, the notes shouldn't instantly disappear.
+5. Give me keyboard buttons to adjust the grid position so I can carefully place it where the notes should be pressed.
+6. Make sure the red box does not extend beyond the piano.
