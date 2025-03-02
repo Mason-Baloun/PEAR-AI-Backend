@@ -1,0 +1,119 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.sln.docstates
+*.sln.iml
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Rider
+.idea/
+
+# Backup & temporary files
+*.bak
+*.swp
+*~
+*.tmp
+*.orig
+
+# Compilation outputs
+*.dll
+*.exe
+*.pdb
+*.mdb
+
+# Log files
+*.log
+*.log.*
+
+# Performance and profiling
+*.diagsession
+
+# Personal configurations
+appsettings.Development.json
+*.pfx
+
+# Midi temporary files
+*.mid.tmp
+
+# Dependency directories
+node_modules/
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Mac specific
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Raylib specific (based on your project's dependencies)
+*.so
+*.dylib
+
+# NAudio temporary files and caches
+*.wav.tmp
