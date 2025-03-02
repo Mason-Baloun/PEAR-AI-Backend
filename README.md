@@ -220,3 +220,17 @@ Add support for alternative input methods by implementing additional device inte
 ## Contact & Support
 
 For questions, issues, or feature requests, please [open an issue](https://github.com/Mason-Baloun/PEAR-AI-Backend/issues) on this repository.
+
+
+## Improvement List:
+
+1. Visualize the coming notes similiar to guitar hero, have a line near the bottom of the screen to determine when the user should play. Later this will be implemented into unity using x,y,z cords. Maybe we use a leightweight 3D processing software that doesn't require unity for debugging and utilize and take the x,y,z and implement that into unity (and maybe other cords as well)
+2. For the demo, remove the 2nd midi option for physical piano (the other is midi, i'm not sure the difference really matters)
+3. For song selection, create a list of songs to choose from reading from PEAR-AI-Backend\Samples\MidiFiles
+
+Enter path to a MIDI file to practice:
+"C:\Users\mason\Downloads\PEAR-AI-Backend\Samples\MidiFiles\Hot Cross Buns.mid"
+File not found. Exiting.
+PS C:\Users\mason\Downloads\PEAR-AI-Backend\src\ARPianoTeacher.ConsoleDemo>
+
+3. Create an exit button within the demo to exit (can be esc or something [I haven't tested to see if it exists already, if it does, ignore this instruction])

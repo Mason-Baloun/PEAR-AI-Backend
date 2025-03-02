@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ARPianoTeacher")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+00cc369a6c899bc00ed90aa1241bd5a734e52030")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cc70e8dc18817fe3e75be5b1a7b1245ecb95b585")]
 [assembly: System.Reflection.AssemblyProductAttribute("ARPianoTeacher")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ARPianoTeacher")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

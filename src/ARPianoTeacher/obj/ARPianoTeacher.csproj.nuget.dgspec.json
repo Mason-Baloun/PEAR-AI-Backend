@@ -45,6 +45,10 @@
             "Newtonsoft.Json": {
               "target": "Package",
               "version": "[13.0.3, )"
+            },
+            "Raylib-cs": {
+              "target": "Package",
+              "version": "[4.5.0, )"
             }
           },
           "imports": [
