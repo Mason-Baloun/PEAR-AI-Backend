@@ -5,7 +5,7 @@
 *.sln.docstates
 *.sln.iml
 
-# Build results
+# Build results (keep main project build artifacts out)
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
@@ -16,8 +16,8 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
-[Bb]in/
-[Oo]bj/
+src/*/[Bb]in/
+src/*/[Oo]bj/
 [Ll]og/
 [Ll]ogs/
 
@@ -67,11 +67,11 @@ ehthumbs_vista.db
 *.tmp
 *.orig
 
-# Compilation outputs
-*.dll
-*.exe
-*.pdb
-*.mdb
+# Compilation outputs (exclude project-specific binaries)
+src/*/[Bb]in/[Dd]ebug/[Nn]et*/*.dll
+src/*/[Bb]in/[Dd]ebug/[Nn]et*/*.exe
+src/*/[Bb]in/[Dd]ebug/[Nn]et*/*.pdb
+src/*/[Bb]in/[Dd]ebug/[Nn]et*/*.mdb
 
 # Log files
 *.log
@@ -117,3 +117,7 @@ Temporary Items
 
 # NAudio temporary files and caches
 *.wav.tmp
+
+# Keep Samples directory
+!src/Samples/
+!Samples/

@@ -37,17 +37,29 @@ namespace ARPianoTeacher
         private const float keySpacing = 0.1f;          // More space between keys
 
         // Hit line position (moved forward from the keys)
-        private const float hitLineZ = -4.0f;           // Position hit line in front of keyboard
+        private const float hitLineZ = -1.0f;           // Position hit line very close to keyboard
+        private const float hitLineHeight = 0.5f;       // Make hit line less obtrusive
 
         // Note visualization settings
         private const float noteSpeed = 0.1f; // How fast notes fall
         private const float trackLength = 30.0f; // Length of the visible track
         private const float noteBaseHeight = 2.0f; // Height above the keyboard
+        private const float noteWallZ = whiteKeyLength; // Position wall at the end of the keyboard
+
+        // Camera settings
+        private const float cameraHeight = 15.0f;
+        private const float cameraDistance = 25.0f;
+        private const float cameraTargetHeight = 0.0f;
+
+        // Keyboard layout
+        private const int totalWhiteKeys = 35; // For full piano range
+        private const float keyboardWidth = totalWhiteKeys * (keyWidth + keySpacing);
+        private const float keyboardStartX = -keyboardWidth / 2; // Center the keyboard
 
         // Colors
         private readonly Color backgroundColor = new Color(180, 180, 180, 255); // Light gray background
-        private readonly Color noteColor = new Color(0, 120, 255, 255); // Bright blue for all notes
-        private readonly Color hitLineColor = new Color(255, 50, 50, 255); // Bright red for hit line
+        private readonly Color whiteNoteColor = new Color(0, 120, 255, 255); // Bright blue for white key notes
+        private readonly Color blackNoteColor = new Color(0, 60, 127, 255); // Darker blue for black key notes
         private readonly Color whiteKeyColor = new Color(240, 240, 240, 255); // Pure white
         private readonly Color blackKeyColor = new Color(30, 30, 30, 255); // Dark gray (not pure black)
         private readonly Color playedKeyColor = new Color(255, 0, 255, 255); // Magenta for played keys
@@ -70,12 +82,12 @@ namespace ARPianoTeacher
             this.midiFile = midiFile;
             this.trackNumber = trackNumber;
 
-            // Initialize the camera - better position to see keyboard centered
+            // Initialize the camera with adjusted position for better keyboard view
             camera = new Camera3D();
-            camera.position = new Vector3(0.0f, 10.0f, 15.0f); // Higher and farther back
-            camera.target = new Vector3(0.0f, 2.0f, -5.0f);    // Look ahead of the keyboard
+            camera.position = new Vector3(0.0f, cameraHeight, cameraDistance);
+            camera.target = new Vector3(0.0f, cameraTargetHeight, 0.0f);
             camera.up = new Vector3(0.0f, 1.0f, 0.0f);
-            camera.fovy = 45.0f;
+            camera.fovy = 60.0f; // Wider field of view
             camera.projection = CameraProjection.CAMERA_PERSPECTIVE;
 
             // Initialize the note mapping
@@ -115,22 +127,28 @@ namespace ARPianoTeacher
             noteToKeyMap.Clear();
 
             // Map a wider range of notes to cover the keyboard
-            int startNote = 36; // C2
-            int endNote = 84;   // C6
+            int startNote = 21; // A0 (lowest piano key)
+            int endNote = 108;  // C8 (highest piano key)
+
+            int whiteKeyIndex = 0;
 
             for (int noteNumber = startNote; noteNumber <= endNote; noteNumber++)
             {
-                int octave = noteNumber / 12;
                 int noteInOctave = noteNumber % 12;
-
                 bool isBlack = (noteInOctave == 1 || noteInOctave == 3 ||
-                               noteInOctave == 6 || noteInOctave == 8 ||
-                               noteInOctave == 10);
+                              noteInOctave == 6 || noteInOctave == 8 ||
+                              noteInOctave == 10);
 
-                // Map to visual key position, centered around C4 (MIDI note 60)
-                int keyPosition = CalculateKeyPosition(noteNumber);
-
-                noteToKeyMap[noteNumber] = (keyPosition, isBlack);
+                if (!isBlack)
+                {
+                    noteToKeyMap[noteNumber] = (whiteKeyIndex, false);
+                    whiteKeyIndex++;
+                }
+                else
+                {
+                    // Black keys use the same index as the previous white key
+                    noteToKeyMap[noteNumber] = (whiteKeyIndex - 1, true);
+                }
             }
 
             Console.WriteLine($"Mapped {noteToKeyMap.Count} notes to keys");
@@ -141,35 +159,35 @@ namespace ARPianoTeacher
         /// </summary>
         private int CalculateKeyPosition(int noteNumber)
         {
-            // Reference point: C4 (MIDI note 60) is position 0
+            // Center around middle C (MIDI note 60)
             int relativeToDividing = noteNumber - 60;
 
-            // Convert from piano note numbers to visual key positions
-            // This accounts for 12 semitones in an octave, with 7 white keys per octave
+            // Calculate octave offset (7 white keys per octave)
             int octaveOffset = relativeToDividing / 12 * 7;
 
-            int noteInOctave = relativeToDividing % 12;
+            // Get note within octave (ensuring positive value)
+            int noteInOctave = ((relativeToDividing % 12) + 12) % 12;
 
             // Map notes within octave to consecutive positions
-            // C, D, E, F, G, A, B
-            int positionInOctave = 0;
-            switch (noteInOctave)
+            int positionInOctave = noteInOctave switch
             {
-                case 0: positionInOctave = 0; break; // C
-                case 1: positionInOctave = 0; break; // C#
-                case 2: positionInOctave = 1; break; // D
-                case 3: positionInOctave = 1; break; // D#
-                case 4: positionInOctave = 2; break; // E
-                case 5: positionInOctave = 3; break; // F
-                case 6: positionInOctave = 3; break; // F#
-                case 7: positionInOctave = 4; break; // G
-                case 8: positionInOctave = 4; break; // G#
-                case 9: positionInOctave = 5; break; // A
-                case 10: positionInOctave = 5; break; // A#
-                case 11: positionInOctave = 6; break; // B
-            }
+                0 => 0,  // C
+                1 => 0,  // C#
+                2 => 1,  // D
+                3 => 1,  // D#
+                4 => 2,  // E
+                5 => 3,  // F
+                6 => 3,  // F#
+                7 => 4,  // G
+                8 => 4,  // G#
+                9 => 5,  // A
+                10 => 5, // A#
+                11 => 6, // B
+                _ => 0
+            };
 
-            return octaveOffset + positionInOctave;
+            // Center the keyboard by offsetting from the middle
+            return octaveOffset + positionInOctave - 12; // Offset to center around middle C
         }
 
         /// <summary>
@@ -177,23 +195,20 @@ namespace ARPianoTeacher
         /// </summary>
         public void SetNoteState(int noteNumber, bool isPlaying)
         {
-            playedNotes[noteNumber] = isPlaying;
-
-            // If C4 is pressed (MIDI note 60), toggle playing the song
-            if (noteNumber == 60 && isPlaying)
+            lock (playedNotes)
             {
-                ToggleSongPlayback();
-            }
+                playedNotes[noteNumber] = isPlaying;
 
-            // Debug output when a note is played
-            if (isPlaying)
-            {
-                Console.WriteLine($"Note played: {noteNumber} (Key Index: {(noteToKeyMap.ContainsKey(noteNumber) ? noteToKeyMap[noteNumber].keyIndex.ToString() : "Not mapped")})");
+                // Debug output when a note is played
+                if (isPlaying)
+                {
+                    Console.WriteLine($"Note played: {noteNumber} (Key Index: {(noteToKeyMap.ContainsKey(noteNumber) ? noteToKeyMap[noteNumber].keyIndex.ToString() : "Not mapped")})");
+                }
             }
         }
 
         /// <summary>
-        /// Toggle song playback when C4 is pressed
+        /// Toggle song playback when Enter is pressed
         /// </summary>
         private void ToggleSongPlayback()
         {
@@ -204,11 +219,11 @@ namespace ARPianoTeacher
                 // Reset playback position and start time
                 playPositionMs = 0;
                 songStartTime = DateTime.Now;
-                Console.WriteLine("Song playback started (C4 pressed)");
+                Console.WriteLine("Song playback started");
             }
             else
             {
-                Console.WriteLine("Song playback paused (C4 pressed)");
+                Console.WriteLine("Song playback paused");
             }
         }
 
@@ -248,7 +263,7 @@ namespace ARPianoTeacher
         /// </summary>
         public void SetPlayPosition(int positionMs)
         {
-            // Only update position manually if not controlled by C4 trigger
+            // Only update position manually if not controlled by Enter key
             if (!isSongPlaying)
             {
                 playPositionMs = positionMs;
@@ -353,6 +368,12 @@ namespace ARPianoTeacher
             if (Raylib.IsKeyDown(KeyboardKey.KEY_S))
                 camera.position.Z += 0.2f;
 
+            // Check for Enter key to toggle playback
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER))
+            {
+                ToggleSongPlayback();
+            }
+
             // Update the camera target to look ahead of keyboard
             camera.target = new Vector3(camera.position.X, camera.position.Y - 5, -5.0f);
 
@@ -376,9 +397,6 @@ namespace ARPianoTeacher
             // Draw note tracks (visual guides)
             DrawNoteTracks();
 
-            // Draw the hit line - now positioned ahead of the keys
-            DrawHitLine();
-
             // Draw notes
             DrawNotes();
 
@@ -398,28 +416,21 @@ namespace ARPianoTeacher
         /// </summary>
         private void DrawNoteTracks()
         {
-            // Draw guide lines for white keys
-            for (int octave = 2; octave <= 6; octave++)
+            // Draw very faint guide lines for all keys
+            foreach (var entry in noteToKeyMap)
             {
-                for (int note = 0; note < 7; note++)
-                {
-                    // Corrected array declaration syntax
-                    int[] whiteKeyNotes = { 0, 2, 4, 5, 7, 9, 11 }; // C, D, E, F, G, A, B
-                    int noteNumber = (octave * 12) + whiteKeyNotes[note];
+                var (keyIndex, isBlack) = entry.Value;
+                float keyX = CalculateKeyX(keyIndex, isBlack);
+                float currentKeyHeight = isBlack ? blackKeyHeight : keyHeight;
 
-                    if (!noteToKeyMap.ContainsKey(noteNumber)) continue;
+                // Track start position (at key top)
+                Vector3 trackStart = new Vector3(keyX, currentKeyHeight, 0);
+                // Track end position (far away)
+                Vector3 trackEnd = new Vector3(keyX, noteBaseHeight, -trackLength);
 
-                    var (keyIndex, isBlack) = noteToKeyMap[noteNumber];
-                    float keyX = CalculateKeyX(keyIndex, isBlack);
-
-                    // Track start position (at hit line)
-                    Vector3 trackStart = new Vector3(keyX, noteBaseHeight, hitLineZ);
-                    // Track end position (far away)
-                    Vector3 trackEnd = new Vector3(keyX, noteBaseHeight, hitLineZ - trackLength);
-
-                    // Draw a faint line to guide the eye
-                    Raylib.DrawLine3D(trackStart, trackEnd, new Color(220, 220, 220, 100));
-                }
+                // Draw a very faint line
+                Color trackColor = isBlack ? new Color(100, 100, 100, 50) : new Color(200, 200, 200, 50);
+                Raylib.DrawLine3D(trackStart, trackEnd, trackColor);
             }
         }
 
@@ -428,8 +439,14 @@ namespace ARPianoTeacher
         /// </summary>
         private void DrawPianoKeyboard()
         {
-            // The keyboard will be centered around position 0
             float keyboardZPosition = 0.0f;
+            Dictionary<int, bool> playedNotesCopy;
+
+            // Create a thread-safe copy of played notes
+            lock (playedNotes)
+            {
+                playedNotesCopy = new Dictionary<int, bool>(playedNotes);
+            }
 
             // First draw all white keys
             foreach (var entry in noteToKeyMap)
@@ -437,14 +454,13 @@ namespace ARPianoTeacher
                 int noteNumber = entry.Key;
                 var (keyIndex, isBlack) = entry.Value;
 
-                // Skip black keys for now
                 if (isBlack) continue;
 
                 float keyX = CalculateKeyX(keyIndex, false);
 
                 // Check if this key is being played
-                bool isPlayed = playedNotes.ContainsKey(noteNumber) && playedNotes[noteNumber];
-                Color keyColor = isPlayed ? playedKeyColor : whiteKeyColor;
+                bool isPlayed = playedNotesCopy.ContainsKey(noteNumber) && playedNotesCopy[noteNumber];
+                Color keyColor = isPlayed ? whiteNoteColor : whiteKeyColor;
 
                 // Draw white key
                 Vector3 position = new Vector3(keyX, keyHeight / 2, keyboardZPosition);
@@ -458,20 +474,19 @@ namespace ARPianoTeacher
                 DrawText3D(label, textPos, 0.5f, Color.BLACK);
             }
 
-            // Then draw all black keys on top
+            // Then draw all black keys
             foreach (var entry in noteToKeyMap)
             {
                 int noteNumber = entry.Key;
                 var (keyIndex, isBlack) = entry.Value;
 
-                // Skip white keys
                 if (!isBlack) continue;
 
                 float keyX = CalculateKeyX(keyIndex, true);
 
                 // Check if this key is being played
-                bool isPlayed = playedNotes.ContainsKey(noteNumber) && playedNotes[noteNumber];
-                Color keyColor = isPlayed ? playedKeyColor : blackKeyColor;
+                bool isPlayed = playedNotesCopy.ContainsKey(noteNumber) && playedNotesCopy[noteNumber];
+                Color keyColor = isPlayed ? blackNoteColor : blackKeyColor;
 
                 // Draw black key
                 Vector3 position = new Vector3(keyX, blackKeyHeight / 2, keyboardZPosition - 1.0f);
@@ -479,6 +494,12 @@ namespace ARPianoTeacher
                 Raylib.DrawCube(position, size.X, size.Y, size.Z, keyColor);
                 Raylib.DrawCubeWires(position, size.X, size.Y, size.Z, Color.DARKGRAY);
             }
+
+            // Draw the wall (semi-transparent plane)
+            Vector3 wallPosition = new Vector3(0, noteBaseHeight / 2, noteWallZ);
+            Vector3 wallSize = new Vector3(keyboardWidth + 2, noteBaseHeight, 0.05f);
+            Color wallColor = new Color(200, 200, 200, 50); // More transparent
+            Raylib.DrawCube(wallPosition, wallSize.X, wallSize.Y, wallSize.Z, wallColor);
         }
 
         /// <summary>
@@ -497,46 +518,15 @@ namespace ARPianoTeacher
         /// </summary>
         private float CalculateKeyX(int keyIndex, bool isBlack)
         {
+            float x = keyboardStartX + (keyIndex * (keyWidth + keySpacing));
+
             if (isBlack)
             {
-                // Black keys are positioned between their adjacent white keys
-                // Get their white key positions
-                float prevWhiteX = 0;
-                float nextWhiteX = 0;
-                int noteInOctave = keyIndex % 7;
-
-                switch (noteInOctave)
-                {
-                    case 0: // C#
-                        prevWhiteX = CalculateKeyX(keyIndex, false);
-                        nextWhiteX = CalculateKeyX(keyIndex + 1, false);
-                        break;
-                    case 1: // D#
-                        prevWhiteX = CalculateKeyX(keyIndex, false);
-                        nextWhiteX = CalculateKeyX(keyIndex + 1, false);
-                        break;
-                    case 3: // F#
-                        prevWhiteX = CalculateKeyX(keyIndex, false);
-                        nextWhiteX = CalculateKeyX(keyIndex + 1, false);
-                        break;
-                    case 4: // G#
-                        prevWhiteX = CalculateKeyX(keyIndex, false);
-                        nextWhiteX = CalculateKeyX(keyIndex + 1, false);
-                        break;
-                    case 5: // A#
-                        prevWhiteX = CalculateKeyX(keyIndex, false);
-                        nextWhiteX = CalculateKeyX(keyIndex + 1, false);
-                        break;
-                }
-
-                // Position slightly closer to the left white key
-                return prevWhiteX + ((nextWhiteX - prevWhiteX) * 0.6f);
+                // Position black keys between white keys
+                x += (keyWidth * 0.7f);
             }
-            else
-            {
-                // White keys are evenly spaced
-                return keyIndex * (keyWidth + keySpacing);
-            }
+
+            return x;
         }
 
         /// <summary>
@@ -551,42 +541,64 @@ namespace ARPianoTeacher
                 var (keyIndex, isBlack) = noteToKeyMap[note.noteNumber];
                 float keyX = CalculateKeyX(keyIndex, isBlack);
                 float width = isBlack ? keyWidth * 0.6f : keyWidth;
-                float length = Math.Abs(note.endZ - note.startZ);
+                float keyLength = isBlack ? blackKeyLength : whiteKeyLength;
 
-                // Skip very short notes or notes that are too far
+                // Calculate the visible portion of the note
+                float visibleStartZ = note.startZ;
+                float visibleEndZ = note.endZ;
+                float length = Math.Abs(visibleEndZ - visibleStartZ);
+
+                // Skip very short notes
                 if (length < 0.1f) continue;
 
-                // Adjust note height to be well above the keyboard
-                float noteY = noteBaseHeight;
+                // Calculate Y position to smoothly descend to the key height
+                float startY = noteBaseHeight;
+                float endY = isBlack ? blackKeyHeight : keyHeight;
+                float noteProgress = (visibleStartZ - trackLength) / (-trackLength); // 0 to 1
+                float currentY = startY + (endY - startY) * noteProgress;
 
-                // Draw the note as a moving block
-                Vector3 position = new Vector3(keyX, noteY, (note.startZ + note.endZ) / 2);
-                Raylib.DrawCube(position, width * 0.8f, 0.5f, length, noteColor);
-                Raylib.DrawCubeWires(position, width * 0.8f, 0.5f, length, Color.WHITE);
+                // Calculate fade based on distance through the wall
+                float fadeStart = noteWallZ - 1.0f; // Start fading 1 unit before the wall
+                float fadeEnd = noteWallZ + 1.0f;   // Complete fade 1 unit after the wall
+                float fadeAlpha = 255;
+
+                if (visibleStartZ > fadeStart)
+                {
+                    float fadeProgress = (visibleStartZ - fadeStart) / (fadeEnd - fadeStart);
+                    fadeAlpha = 255 * (1.0f - Math.Min(1.0f, Math.Max(0.0f, fadeProgress)));
+                }
+
+                // Draw the note with appropriate color and fade
+                Color noteColor = isBlack ? blackNoteColor : whiteNoteColor;
+                noteColor.a = (byte)fadeAlpha;
+                Vector3 position = new Vector3(keyX, currentY, (visibleStartZ + visibleEndZ) / 2);
+                Raylib.DrawCube(position, width, 0.5f, length, noteColor);
+
+                // Only draw wireframe if note isn't too faded
+                if (fadeAlpha > 30)
+                {
+                    Color wireColor = Color.WHITE;
+                    wireColor.a = (byte)fadeAlpha;
+                    Raylib.DrawCubeWires(position, width, 0.5f, length, wireColor);
+                }
+
+                // If note has reached the wall, mark it as being played
+                if (visibleStartZ >= noteWallZ)
+                {
+                    lock (playedNotes)
+                    {
+                        playedNotes[note.noteNumber] = true;
+                    }
+                }
+                else if (note.endZ < fadeStart)
+                {
+                    // If note has passed completely before the fade zone, mark it as not being played
+                    lock (playedNotes)
+                    {
+                        playedNotes[note.noteNumber] = false;
+                    }
+                }
             }
-        }
-
-        /// <summary>
-        /// Draw the hit line where notes should be played
-        /// </summary>
-        private void DrawHitLine()
-        {
-            // Calculate the width needed to cover all keys
-            float keyboardWidth = 25 * (keyWidth + keySpacing);
-            float keyboardStart = -12.5f * (keyWidth + keySpacing);
-
-            // Draw a more visible hit line at the position (z = hitLineZ)
-            // Use bigger cubes and more vibrant color
-            for (float x = keyboardStart; x <= keyboardStart + keyboardWidth; x += 0.2f)
-            {
-                Vector3 position = new Vector3(x, noteBaseHeight, hitLineZ);
-                Raylib.DrawCube(position, 0.15f, 0.15f, 0.15f, hitLineColor);
-            }
-
-            // Add hit plane for better visibility - make it taller
-            Vector3 planeCenter = new Vector3(0, noteBaseHeight, hitLineZ);
-            Vector3 planeSize = new Vector3(keyboardWidth, 1.0f, 0.1f);
-            Raylib.DrawCube(planeCenter, planeSize.X, planeSize.Y, planeSize.Z, new Color(255, 50, 50, 180));
         }
 
         /// <summary>
@@ -602,7 +614,7 @@ namespace ARPianoTeacher
             Raylib.DrawText(positionText, 20, 60, 20, Color.GREEN);
 
             // Draw playback status
-            string statusText = isSongPlaying ? "Status: Playing (Press C4 to pause)" : "Status: Paused (Press C4 to play)";
+            string statusText = isSongPlaying ? "Status: Playing (Press Enter to pause)" : "Status: Paused (Press Enter to play)";
             Raylib.DrawText(statusText, 20, 90, 20, Color.BLUE);
 
             // Draw note debug info
@@ -614,7 +626,7 @@ namespace ARPianoTeacher
 
             Raylib.DrawText("Arrow keys: Move camera", 20, yPos, 20, instructionColor);
             Raylib.DrawText("W/S: Move forward/backward", 20, yPos + 30, 20, instructionColor);
-            Raylib.DrawText("C4 on MIDI keyboard: Start/pause the song", 20, yPos + 60, 20, instructionColor);
+            Raylib.DrawText("Enter: Start/pause the song", 20, yPos + 60, 20, instructionColor);
             Raylib.DrawText("ESC: Exit application", 20, yPos + 90, 20, instructionColor);
         }
 
