@@ -14,26 +14,36 @@ namespace ARPianoTeacher
     /// <summary>
     /// Main system for the AR Piano teaching application
     /// </summary>
-    public class PianoFeedbackSystem
+    public class PianoFeedbackSystem : IDisposable
     {
         // API configuration
         private string openAiApiKey;
         private string elevenLabsApiKey;
         private string elevenLabsVoiceId;
-        
+
         // MIDI configuration
         private MidiIn? midiInput;
         private MidiFile? currentSong;
         private List<NoteEvent> playedNotes = new List<NoteEvent>();
         private List<NoteEvent> expectedNotes = new List<NoteEvent>();
-        
+
         // Feedback configuration
         private HttpClient httpClient;
         private float timingToleranceMs = 300; // Tolerance for timing differences (in milliseconds)
         private Stopwatch playbackTimer = new Stopwatch();
-        
+
         // Personality for feedback
         private string? personalityProfile;
+
+        /// <summary>
+        /// Event delegate for MIDI note events
+        /// </summary>
+        public delegate void NoteStateChangedHandler(int noteNumber, bool isNoteOn);
+
+        /// <summary>
+        /// Event fired when a note is played or released
+        /// </summary>
+        public event NoteStateChangedHandler? NoteStateChanged;
 
         public class NoteEvent
         {
@@ -41,7 +51,7 @@ namespace ARPianoTeacher
             public int Velocity { get; set; }
             public long TimeStamp { get; set; }
             public bool IsNoteOn { get; set; }
-            
+
             public override string ToString()
             {
                 return $"Note: {NoteNumber}, Velocity: {Velocity}, Time: {TimeStamp}ms, IsNoteOn: {IsNoteOn}";
@@ -57,7 +67,7 @@ namespace ARPianoTeacher
             elevenLabsApiKey = elevenLabsKey;
             elevenLabsVoiceId = voiceId;
             httpClient = new HttpClient();
-            
+
             // Load default personality if needed
             LoadDefaultPersonality();
         }
@@ -104,7 +114,7 @@ namespace ARPianoTeacher
                 {
                     Console.WriteLine($"MIDI Device {i}: {MidiIn.DeviceInfo(i).ProductName}");
                 }
-                
+
                 if (deviceId >= MidiIn.NumberOfDevices)
                 {
                     Console.WriteLine($"Invalid device ID. Please choose 0-{MidiIn.NumberOfDevices - 1}");
@@ -149,18 +159,18 @@ namespace ARPianoTeacher
         private void ParseExpectedNotes()
         {
             if (currentSong == null) return;
-            
+
             expectedNotes.Clear();
-            
+
             // For this example, we'll use track 0 or 1 (typically melody)
             int trackToUse = currentSong.Tracks > 1 ? 1 : 0;
-            
+
             foreach (var midiEvent in currentSong.Events[trackToUse])
             {
                 if (midiEvent is NoteOnEvent noteOn && noteOn.Velocity > 0)
                 {
-                    expectedNotes.Add(new NoteEvent 
-                    { 
+                    expectedNotes.Add(new NoteEvent
+                    {
                         NoteNumber = noteOn.NoteNumber,
                         Velocity = noteOn.Velocity,
                         TimeStamp = noteOn.AbsoluteTime,
@@ -170,13 +180,13 @@ namespace ARPianoTeacher
                 else if (midiEvent is NAudio.Midi.NoteEvent midiNoteEvent)
                 {
                     // Check if it's a note-off event (note-on with velocity 0 or actual note-off)
-                    bool isNoteOff = (midiEvent is NoteOnEvent noteOnEvent && noteOnEvent.Velocity == 0) || 
+                    bool isNoteOff = (midiEvent is NoteOnEvent noteOnEvent && noteOnEvent.Velocity == 0) ||
                                      midiEvent.CommandCode == MidiCommandCode.NoteOff;
-                    
+
                     if (isNoteOff)
                     {
-                        expectedNotes.Add(new NoteEvent 
-                        { 
+                        expectedNotes.Add(new NoteEvent
+                        {
                             NoteNumber = midiNoteEvent.NoteNumber,
                             Velocity = 0,
                             TimeStamp = midiNoteEvent.AbsoluteTime,
@@ -185,7 +195,7 @@ namespace ARPianoTeacher
                     }
                 }
             }
-            
+
             Console.WriteLine($"Parsed {expectedNotes.Count} expected note events");
         }
 
@@ -199,7 +209,7 @@ namespace ARPianoTeacher
                 Console.WriteLine("Please load a song first");
                 return;
             }
-            
+
             playedNotes.Clear();
             playbackTimer.Reset();
             playbackTimer.Start();
@@ -222,28 +232,33 @@ namespace ARPianoTeacher
         private void MidiInput_MessageReceived(object? sender, MidiInMessageEventArgs e)
         {
             if (!playbackTimer.IsRunning) return;
-            
+
             var messageType = e.MidiEvent.CommandCode;
-            
+
             if (messageType == MidiCommandCode.NoteOn || messageType == MidiCommandCode.NoteOff)
             {
                 // Cast to NAudio's NoteEvent type
                 if (e.MidiEvent is NAudio.Midi.NoteEvent midiNoteEvent)
                 {
+                    bool isNoteOn = messageType == MidiCommandCode.NoteOn && midiNoteEvent.Velocity > 0;
+
                     // Create our own NoteEvent instance
                     var noteEvent = new NoteEvent
                     {
                         NoteNumber = midiNoteEvent.NoteNumber,
                         Velocity = midiNoteEvent.Velocity,
                         TimeStamp = playbackTimer.ElapsedMilliseconds,
-                        IsNoteOn = messageType == MidiCommandCode.NoteOn && midiNoteEvent.Velocity > 0
+                        IsNoteOn = isNoteOn
                     };
-                    
+
                     // Store played note information
                     playedNotes.Add(noteEvent);
-                    
+
+                    // Fire the note event to notify subscribers
+                    NoteStateChanged?.Invoke(noteEvent.NoteNumber, isNoteOn);
+
                     // For debugging
-                    if (messageType == MidiCommandCode.NoteOn && midiNoteEvent.Velocity > 0)
+                    if (isNoteOn)
                     {
                         string noteName = GetNoteName(noteEvent.NoteNumber);
                         Console.WriteLine($"Note played: {noteName} ({noteEvent.NoteNumber}) at {playbackTimer.ElapsedMilliseconds}ms");
@@ -251,7 +266,7 @@ namespace ARPianoTeacher
                 }
             }
         }
-        
+
         /// <summary>
         /// Convert MIDI note number to note name
         /// </summary>
@@ -271,10 +286,10 @@ namespace ARPianoTeacher
             // Prepare analysis results for AI feedback
             var analysis = AnalyzePerformance();
             string feedback = await GenerateAIFeedbackAsync(analysis);
-            
+
             // Convert feedback to speech
             await SpeakFeedbackAsync(feedback);
-            
+
             // Also log the textual feedback
             Console.WriteLine("\nFeedback: " + feedback);
         }
@@ -288,20 +303,20 @@ namespace ARPianoTeacher
             int incorrectNotes = 0;
             int missedNotes = 0;
             List<string> specificIssues = new List<string>();
-            
+
             // This is a simplified analysis algorithm - would be more sophisticated in practice
             foreach (var expected in expectedNotes.Where(n => n.IsNoteOn))
             {
                 // Look for a matching played note within timing tolerance
-                var match = playedNotes.FirstOrDefault(p => 
-                    p.IsNoteOn && 
-                    p.NoteNumber == expected.NoteNumber && 
+                var match = playedNotes.FirstOrDefault(p =>
+                    p.IsNoteOn &&
+                    p.NoteNumber == expected.NoteNumber &&
                     Math.Abs(p.TimeStamp - expected.TimeStamp) < timingToleranceMs);
-                
+
                 if (match != null)
                 {
                     correctNotes++;
-                    
+
                     // Check if timing was off but still within tolerance
                     if (Math.Abs(match.TimeStamp - expected.TimeStamp) > (timingToleranceMs / 2))
                     {
@@ -312,11 +327,11 @@ namespace ARPianoTeacher
                 else
                 {
                     // Check if wrong note was played at this time
-                    var wrongNote = playedNotes.FirstOrDefault(p => 
-                        p.IsNoteOn && 
-                        p.NoteNumber != expected.NoteNumber && 
+                    var wrongNote = playedNotes.FirstOrDefault(p =>
+                        p.IsNoteOn &&
+                        p.NoteNumber != expected.NoteNumber &&
                         Math.Abs(p.TimeStamp - expected.TimeStamp) < timingToleranceMs);
-                    
+
                     if (wrongNote != null)
                     {
                         incorrectNotes++;
@@ -332,24 +347,24 @@ namespace ARPianoTeacher
                     }
                 }
             }
-            
+
             // Check for extra notes that weren't expected
-            var extraNotes = playedNotes.Where(p => p.IsNoteOn && 
-                !expectedNotes.Any(e => e.IsNoteOn && 
-                    e.NoteNumber == p.NoteNumber && 
+            var extraNotes = playedNotes.Where(p => p.IsNoteOn &&
+                !expectedNotes.Any(e => e.IsNoteOn &&
+                    e.NoteNumber == p.NoteNumber &&
                     Math.Abs(e.TimeStamp - p.TimeStamp) < timingToleranceMs)).Count();
-            
+
             // Calculate overall accuracy
             float totalExpectedNotes = expectedNotes.Count(n => n.IsNoteOn);
             float accuracyPct = totalExpectedNotes > 0 ? (correctNotes / totalExpectedNotes) * 100 : 0;
-            
+
             // Limit number of specific issues to report
             if (specificIssues.Count > 5)
             {
                 specificIssues = specificIssues.Take(5).ToList();
                 specificIssues.Add("... and other issues");
             }
-            
+
             return new Dictionary<string, object>
             {
                 { "totalNotes", (int)totalExpectedNotes },
@@ -367,18 +382,18 @@ namespace ARPianoTeacher
         /// </summary>
         private async Task<string> GenerateAIFeedbackAsync(Dictionary<string, object> analysis)
         {
-            var requestData = new 
+            var requestData = new
             {
                 model = "gpt-4o",
                 messages = new[]
                 {
-                    new { role = "system", content = 
+                    new { role = "system", content =
                         $"You are an AI piano teacher with the following personality profile: {personalityProfile}\n\n" +
                         "Please provide personalized feedback for a student's piano performance based on the analysis results. " +
                         "Keep your feedback concise (1-3 paragraphs), encouraging but honest, and focused on the most important issues. " +
                         "Offer 1-2 specific tips to help them improve. Use natural, conversational language as if speaking directly to them."
                     },
-                    new { role = "user", content = 
+                    new { role = "user", content =
                         $"I just played a piano piece and here's the analysis of my performance:\n" +
                         $"- Total notes: {analysis["totalNotes"]}\n" +
                         $"- Correct notes: {analysis["correctNotes"]}\n" +
@@ -392,22 +407,23 @@ namespace ARPianoTeacher
                     }
                 }
             };
-            
+
             string jsonRequest = JsonConvert.SerializeObject(requestData);
-            
+
             httpClient.DefaultRequestHeaders.Clear();
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {openAiApiKey}");
-            
+
             var content = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
             var response = await httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
-            
+
             if (response.IsSuccessStatusCode)
             {
                 var responseString = await response.Content.ReadAsStringAsync();
-                var responseData = JsonConvert.DeserializeAnonymousType(responseString, new { 
-                    choices = new[] { new { message = new { content = "" } } } 
+                var responseData = JsonConvert.DeserializeAnonymousType(responseString, new
+                {
+                    choices = new[] { new { message = new { content = "" } } }
                 });
-                
+
                 if (responseData?.choices?.Length > 0)
                 {
                     return responseData.choices[0].message.content;
@@ -441,25 +457,25 @@ namespace ARPianoTeacher
                 };
 
                 string jsonRequest = JsonConvert.SerializeObject(requestData);
-                
+
                 httpClient.DefaultRequestHeaders.Clear();
                 httpClient.DefaultRequestHeaders.Add("xi-api-key", elevenLabsApiKey);
-                
+
                 var content = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
                 var response = await httpClient.PostAsync(
                     $"https://api.elevenlabs.io/v1/text-to-speech/{elevenLabsVoiceId}", content);
-                
+
                 if (response.IsSuccessStatusCode)
                 {
                     // Save audio to file and play it
                     var audioBytes = await response.Content.ReadAsByteArrayAsync();
                     string tempFile = Path.Combine(Path.GetTempPath(), "piano_feedback.mp3");
-                    
+
                     File.WriteAllBytes(tempFile, audioBytes);
-                    
+
                     // Play the audio (implementation varies by platform)
                     PlayAudio(tempFile);
-                    
+
                     Console.WriteLine("Feedback spoken successfully");
                 }
                 else
@@ -494,7 +510,7 @@ namespace ARPianoTeacher
                 Console.WriteLine($"Error playing audio: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// Set the timing tolerance for note accuracy (in milliseconds)
         /// </summary>
@@ -503,7 +519,7 @@ namespace ARPianoTeacher
             timingToleranceMs = toleranceMs;
             Console.WriteLine($"Timing tolerance set to {toleranceMs}ms");
         }
-        
+
         /// <summary>
         /// Clean up resources
         /// </summary>

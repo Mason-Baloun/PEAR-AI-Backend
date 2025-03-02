@@ -77,11 +77,19 @@ namespace ARPianoTeacher.ConsoleDemo
                 // Initialize the 3D note visualizer with the MIDI file
                 visualizer = new Note3DVisualizer(new MidiFile(midiFilePath));
 
+                // Connect the piano feedback system to the visualizer
+                Console.WriteLine("Connecting MIDI input to visualizer...");
+                pianoSystem.NoteStateChanged += (noteNumber, isNoteOn) =>
+                {
+                    visualizer.SetNoteState(noteNumber, isNoteOn);
+                };
+
                 // Setup keyboard listener for exit command
                 StartKeyboardListener();
 
                 // Start practice session
                 Console.WriteLine("\nStarting 3D visualization. Press ESC in the 3D window to exit.");
+                Console.WriteLine("Play C4 (middle C) on your MIDI keyboard to start/pause the song playback.");
 
                 // Start the visualizer
                 visualizer.Start();
@@ -303,7 +311,6 @@ namespace ARPianoTeacher.ConsoleDemo
         static void StartVisualizerTimer()
         {
             var playTimer = new System.Timers.Timer(50); // Update every 50ms
-            var startTime = DateTime.Now;
 
             playTimer.Elapsed += (s, e) =>
             {
@@ -313,9 +320,8 @@ namespace ARPianoTeacher.ConsoleDemo
                     return;
                 }
 
-                // Calculate elapsed time in milliseconds
-                int elapsedMs = (int)(DateTime.Now - startTime).TotalMilliseconds;
-                visualizer.SetPlayPosition(elapsedMs);
+                // Let the visualizer handle the position internally
+                visualizer.SetPlayPosition(-1);
             };
 
             playTimer.Start();
